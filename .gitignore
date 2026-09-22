@@ -11,3 +11,7 @@ artifacts/
 *.spz
 *.splat
 *.mp4
+.DS_Store
+data/
+*.sqlite*
+*.log

@@ -1,0 +1,11 @@
+node_modules
+.git
+.openai
+.sites-runtime
+dist
+data
+captures
+artifacts
+.env*
+.DS_Store
+*.pdf
