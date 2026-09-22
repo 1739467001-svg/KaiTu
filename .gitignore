@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.sites-runtime/
+.env*
+!.env.example
+captures/
+artifacts/
+*.insv
+*.insp
+*.ply
+*.spz
+*.splat
+*.mp4
