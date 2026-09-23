@@ -1,0 +1,11 @@
+*
+!dist
+!dist/**
+!server
+!server/**
+!src
+!src/venues.js
+!package.json
+!deploy
+!deploy/aliyun
+!deploy/aliyun/Dockerfile

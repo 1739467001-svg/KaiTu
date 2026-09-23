@@ -14,7 +14,7 @@ const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application
 const body=async(req)=>{let chunks=[],bytes=0;for await(const c of req){bytes+=c.length;if(bytes>16384)throw Object.assign(new Error('JSON 请求过大'),{status:413});chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}');}catch{throw Object.assign(new Error('JSON 格式无效'),{status:400});}};
 function auth(req,token){const provided=Buffer.from(req.headers.authorization?.replace(/^Bearer /,'')||''),expected=Buffer.from(token);return provided.length===expected.length&&timingSafeEqual(provided,expected);}
 export function createApp({directory=resolve(process.env.DATA_DIR||'data'),token=process.env.KAITU_API_TOKEN,dist=resolve('dist'),aiEnv=process.env,maxBytes=Number(process.env.MAX_UPLOAD_MB||512)*1024*1024,store=openStore(directory)}={}){
- if(!token||token.length<32)throw new Error('KAITU_API_TOKEN 必须设置为至少 32 个字符的随机密钥');
+ if(!token||(token.length<32&&!(process.env.KAITU_ALLOW_SHORT_TOKEN==='true'&&token.length>=4)))throw new Error('KAITU_API_TOKEN 必须设置为至少 32 个字符的随机密钥');
  let uploading=0,aiRequests=0;
  const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');

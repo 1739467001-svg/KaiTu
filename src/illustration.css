@@ -18,3 +18,23 @@ dialog{background:#fffaf0;color:#5f7052;border:1px solid #c7c6a8;border-radius:2
 .tour-unavailable{padding:38px 35px;background:#f4efd9;border:1px dashed #c8be93;border-radius:16px;max-width:700px;margin:0 auto 20px}.archive-stamp{display:inline-block;background:#e9d09e;border:1px dashed #ba9b65;border-radius:7px;color:#9d7b44;font-size:10px;padding:7px 10px;transform:rotate(-2deg)}.tour-unavailable h3{font:27px/1.6 'Kaiti SC','STKaiti',serif;color:#748654}.tour-unavailable p{font-size:12px;color:#999476;line-height:1.9}.tour-unavailable a{font-size:12px}.tour-unavailable .small{font-size:10px;margin-top:25px}
 /* Keep secondary text comfortably readable against the paper background. */
 .intro,.side-top .intro,.small,.work-lead,.work-list span,.place-detail,.journey-card>p{color:#747762}.source-note,.data-label,.offer-content>p,.evidence-row span{color:#808064}
+
+/* Daylight controls live in the sidebar, never over the 3D canvas. */
+.daylight-card{margin:5px 6px 16px 2px;border:1px solid #cbd3b5;border-radius:14px;background:#f5f6e8;overflow:hidden}
+.daylight-card>summary{cursor:pointer;list-style:none;padding:12px 14px;color:#456247;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.daylight-card>summary::-webkit-details-marker{display:none}
+.daylight-card>summary>span{font-size:10px;color:#7b866d}
+.daylight-card[open]>summary{border-bottom:1px dashed #ccd2b6}
+.sidebar .daylight-card .time-console{position:static;inset:auto;transform:none;width:auto;max-width:none;margin:0;padding:13px;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.daylight-card .time-top{flex-wrap:wrap;gap:9px}.daylight-card #time-venue{flex-basis:100%;font-size:10px}.daylight-card #time-value{font-size:22px}.daylight-card #play-day{margin-left:auto;font-size:11px;padding:8px 10px}.daylight-card .time-caption{flex-wrap:wrap;gap:5px;font-size:9px}.daylight-card .time-ticks{font-size:9px}
+@media(max-width:720px){.daylight-card{margin-top:0}.daylight-card>summary{padding:10px 14px}}
+
+/* A postcard from spatial capture to a creative souvenir. */
+.beadring-card{margin:18px 0;padding:17px;border:1px dashed #d2ab8c;border-radius:17px;background:#fff0df;color:#64563f;position:relative}
+.beadring-heading{display:flex;align-items:center;gap:9px;font-size:9px;letter-spacing:1px;color:#987354}
+.beadring-mark{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#f4c7b2;color:#996443;font-size:23px;transform:rotate(-8deg)}
+.beadring-card h4{font-family:'Kaiti SC','STKaiti','Songti SC',serif;font-size:22px;font-weight:600;margin:12px 0 8px;color:#625039}
+.beadring-card p{font-size:12px;line-height:1.85;margin:0 0 14px;color:#88745c}
+.beadring-link{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 13px;border:1px solid #c58f70;border-radius:11px;background:#f2c2a3;color:#513d2c;font-size:12px;font-weight:600;text-decoration:none;box-shadow:0 3px 0 #d4ad8840;transition:background .15s}
+.beadring-link:hover{background:#f9d3b7}.beadring-link:focus-visible{outline:3px solid #577850;outline-offset:3px}
+.beadring-link>span{font-size:18px}.beadring-card>small{display:block;margin-top:10px;font-size:10px;color:#9b846c}
