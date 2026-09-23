@@ -22,7 +22,7 @@ export function sign(parent,text,pos,{width=8,height=2,color='#ded8b6',backgroun
 }
 export function roof(parent,w,d,h,y,material,upturn=.55){
  const nx=24,nz=20,geo=new THREE.PlaneGeometry(w,d,nx,nz);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
- const height=(x,z)=>{const u=Math.abs(x/(w/2)),v=Math.abs(z/(d/2));return h*Math.pow(1-v,1.6)*(1-.12*Math.pow(u,6))+upturn*(Math.pow(v,5)+Math.pow(u,8));};
+ const height=(x,z)=>{const u=Math.min(1,Math.abs(x/(w/2))),v=Math.min(1,Math.abs(z/(d/2)));return h*Math.pow(1-v,1.6)*(1-.12*Math.pow(u,6))+upturn*(Math.pow(v,5)+Math.pow(u,8));};
  for(let i=0;i<p.count;i++)p.setY(i,height(p.getX(i),p.getZ(i)));geo.computeVertexNormals();const r=add(parent,geo,material,[0,y,0]);r.material.side=THREE.DoubleSide;
  const ridge=mat('#53584f');curve(parent,Array.from({length:13},(_,i)=>{const x=(i/12-.5)*w;return[x,y+h+upturn*Math.abs(x/(w/2))**5,0];}),ridge,.16);
  for(const z of [-d/2,d/2])curve(parent,Array.from({length:13},(_,i)=>{const x=(i/12-.5)*w;return[x,y+height(x,z)-.04,z];}),ridge,.10);
@@ -39,11 +39,18 @@ export function chineseHall(parent,{x=0,z=0,y=0,w=24,d=13,h=6,red=true,label='',
 export function lantern(parent,x,y,z,scale=1){
  const group=new THREE.Group();group.position.set(x,y,z);group.scale.setScalar(scale);parent.add(group);const red=mat('#be5037',{emissive:'#fa782b',emissiveIntensity:.08,roughness:.5});const sphere=add(group,new THREE.SphereGeometry(.48,12,10),red,[0,0,0]);sphere.scale.y=1.25;const gold=mat('#b59458',{metalness:.4});for(const yy of [-.55,.55])add(group,new THREE.CylinderGeometry(.25,.25,.13,10),gold,[0,yy,0]);curve(group,[[0,-.5,0],[0,-1,0]],gold,.025);curve(group,[[0,.6,0],[0,1,0]],gold,.035);return red;
 }
+let foliageTexture;
+function foliageMap(){
+ if(foliageTexture)return foliageTexture;const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),r=seeded(778);
+ // Individual leaf strokes create an irregular silhouette at human viewing distance.
+ for(let i=0;i<520;i++){const a=r()*Math.PI*2,rad=Math.sqrt(r()),x=64+Math.cos(a)*rad*53,y=64+Math.sin(a)*rad*54;g.fillStyle=`rgba(${Math.round(140+r()*100)},${Math.round(150+r()*95)},${Math.round(125+r()*110)},${.7+r()*.3})`;g.beginPath();g.ellipse(x,y,1+r()*4,1+r()*2.5,r()*Math.PI,0,Math.PI*2);g.fill();}
+ foliageTexture=new THREE.CanvasTexture(c);foliageTexture.colorSpace=THREE.SRGBColorSpace;return foliageTexture;
+}
 export function trees(parent,points,{autumn=false,seed=38}={}){
- const rand=seeded(seed),leaf=mat('#c9ce9b'),trunk=mat('#665546'),wind={value:0};leaf.onBeforeCompile=shader=>{shader.uniforms.canopyTime=wind;shader.vertexShader='uniform float canopyTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.x += sin(canopyTime*.7+position.y*3.)*.055;');};leaf.customProgramCacheKey=()=>'kaitu-canopy-v1';
- const canopy=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,1),leaf,points.length*5),trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.11,.24,1,7),trunk,points.length),o=new THREE.Object3D();let k=0;
- for(let i=0;i<points.length;i++){const [x,y,z,h=5]=points[i];o.position.set(x,y+h*.3,z);o.rotation.set(0,0,0);o.scale.set(1,h*.65,1);o.updateMatrix();trunks.setMatrixAt(i,o.matrix);
-  for(let j=0;j<5;j++){const a=j*2.399;const size=h*(.26+rand()*.09);o.position.set(x+Math.sin(a)*h*.22,y+h*(.7+rand()*.18),z+Math.cos(a)*h*.24);o.scale.set(size,size*(.75+rand()*.35),size);o.rotation.set(rand()*.5,rand()*6,rand()*.3);o.updateMatrix();canopy.setMatrixAt(k,o.matrix);const color=new THREE.Color();if(autumn)color.setHSL([.028,.058,.105,.15,.22][Math.floor(rand()*5)],.44+rand()*.18,.29+rand()*.18);else color.setHSL(.24+rand()*.11,.2+rand()*.25,.26+rand()*.15);canopy.setColorAt(k++,color);}
+ const rand=seeded(seed),leaf=mat('#ffffff',{map:foliageMap(),alphaTest:.45,side:THREE.DoubleSide,roughness:.92}),trunk=mat('#665546'),wind={value:0};leaf.onBeforeCompile=shader=>{shader.uniforms.canopyTime=wind;shader.vertexShader='uniform float canopyTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed.x += sin(canopyTime*.7+position.y*3.)*.035;');};leaf.customProgramCacheKey=()=>'kaitu-leaves-v2';
+ const canopy=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),leaf,points.length*16),trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.10,.24,1,7),trunk,points.length),o=new THREE.Object3D();let k=0;
+ for(let i=0;i<points.length;i++){const[x,y,z,h=5]=points[i];o.position.set(x,y+h*.34,z);o.rotation.set(0,0,0);o.scale.set(1,h*.68,1);o.updateMatrix();trunks.setMatrixAt(i,o.matrix);
+ for(let j=0;j<16;j++){const a=j*2.399,size=h*(.36+rand()*.16),radius=j<12?.22:.06;o.position.set(x+Math.sin(a)*h*radius,y+h*(.58+rand()*.32),z+Math.cos(a)*h*radius);o.scale.set(size,size,1);o.rotation.set((rand()-.5)*2,rand()*Math.PI,rand()*.6);o.updateMatrix();canopy.setMatrixAt(k,o.matrix);const color=new THREE.Color();if(autumn)color.setHSL([.015,.04,.085,.12,.22][Math.floor(rand()*5)],.55+rand()*.19,.32+rand()*.18);else color.setHSL(.22+rand()*.1,.23+rand()*.2,.31+rand()*.15);canopy.setColorAt(k++,color);}
  }
  canopy.castShadow=canopy.receiveShadow=true;trunks.castShadow=true;parent.add(canopy,trunks);return time=>wind.value=time;
 }
@@ -61,6 +68,6 @@ export function reflectiveWater(parent,geometry,position=[0,0,0],color='#496e69'
  return {mesh:water,tick(time,sun,night=0){water.material.uniforms.time.value=time*.28;water.material.uniforms.sunDirection.value.copy(sun.position).normalize();water.material.uniforms.waterColor.value.set(color).multiplyScalar(1-night*.5);}};
 }
 export function optimizeStatic(root){
- root.updateMatrixWorld(true);const groups=new Map(),inverse=root.matrixWorld.clone().invert();root.traverse(mesh=>{if(!mesh.isMesh||mesh.isInstancedMesh||Array.isArray(mesh.material)||mesh.material.transparent)return;let a=mesh;while(a&&a!==root.parent){if(!a.visible||a.userData.skipBatch)return;a=a.parent;}const key=mesh.material.uuid+mesh.castShadow+mesh.receiveShadow;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(mesh);});
+ root.updateMatrixWorld(true);const groups=new Map(),inverse=root.matrixWorld.clone().invert();root.traverse(mesh=>{if(!mesh.isMesh||mesh.isInstancedMesh||Array.isArray(mesh.material)||mesh.material.transparent)return;let a=mesh;while(a&&a!==root.parent){if(!a.visible||a.userData.skipBatch)return;a=a.parent;}const layout=Object.entries(mesh.geometry.attributes).map(([k,a])=>k+':'+a.itemSize+':'+a.normalized+':'+a.array.constructor.name).sort().join('|');const key=mesh.material.uuid+mesh.castShadow+mesh.receiveShadow+Boolean(mesh.geometry.index)+layout;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(mesh);});
  for(const group of groups.values()){if(group.length<3)continue;const geometries=group.map(m=>m.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse,m.matrixWorld)));let merged;try{merged=mergeGeometries(geometries,false);}catch{/* Mixed attribute layouts keep their original meshes. */}if(merged){const batch=new THREE.Mesh(merged,group[0].material);batch.castShadow=group[0].castShadow;batch.receiveShadow=group[0].receiveShadow;root.add(batch);for(const m of group)m.removeFromParent();}geometries.forEach(g=>g.dispose());}
 }

@@ -23,18 +23,18 @@ export function createMendong(){
  for(const side of [-1,1])for(let col=0;col<2;col++)for(let i=0;i<5;i++){const x=side*(39+col*20),z=52-i*27;house(x,z,20,18,5+(i%2)*2,'');}
  // Grey stone arch, layered beams and relief medallions rather than a generic red gate.
  const arch=new THREE.Group();arch.position.set(0,0,63);root.add(arch);const stone=textured('#c1c0aa','brick',2),detail=mat('#979f8c');
- for(const x of [-12,-5,5,12]){box(arch,1.35,13,1.45,x,6.5,0,stone);box(arch,2.7,.55,3,x,.3,0,stone);add(arch,new THREE.SphereGeometry(.52,10,8),detail,[x,13.6,0]);for(const z of [-1.2,1.2]){const buttress=box(arch,.95,1.3,2,x,.9,z,detail);buttress.rotation.x=z>0?.28:-.28;}}
- box(arch,26,1.1,1.7,0,7.8,0,stone);box(arch,25.5,1.1,1.8,0,11,0,stone);box(arch,11.8,1.2,2,0,14,0,stone);box(arch,12.4,.4,2.5,0,14.8,0,detail);for(const x of [-9,9])box(arch,6,.4,2.2,x,12.1,0,detail);
- sign(arch,'老 门 东',[0,11.1,1],{width:7.5,height:2,font:150,color:'#40554e',background:'#c5c3ab'});
- for(const x of [-9,9])sign(arch,x<0?'金陵旧事':'城南烟火',[x,9.3,1],{width:4.5,height:1.2,font:115,color:'#596958',background:'#c5c3ab'});
- for(let i=0;i<15;i++){const ring=add(arch,new THREE.TorusGeometry(.3,.1,6,10),detail,[-11.2+i*1.6,7.8,.91]);}
+ // Three tiled lintels and four unequal-height stone columns match the CC0 reference.
+ for(const x of [-12,-5,5,12]){const inner=Math.abs(x)<6,h=inner?17:13;box(arch,1.1,h,1.25,x,h/2,0,stone);box(arch,2.1,.45,2.4,x,.3,0,stone);box(arch,1.5,.55,1.7,x,h-.1,0,detail);add(arch,new THREE.CylinderGeometry(.6,.62,2.9,12),stone,[x,h+1.5,0]);for(let j=0;j<8;j++){const ring=add(arch,new THREE.TorusGeometry(.6,.06,5,14),detail,[x,h+.25+j*.35,0]);ring.rotation.x=Math.PI/2;}}
+ for(const [x,width,y]of [[0,10,11.4],[-8.5,6.6,8.9],[8.5,6.6,8.9]]){box(arch,width,2.65,1.6,x,y,0,stone);box(arch,width+.35,.3,2,x,y-1.5,0,detail);const cap=new THREE.Group();cap.position.set(x,y+1.85,0);arch.add(cap);roof(cap,width+.7,3.2,.9,0,roofMat,.13);for(let k=0;k<7;k++){box(arch,.19,.6,.35,x+(k-3)*width/7,y+1.6,.77,detail);for(const z of [-.86,.86]){const ring=add(arch,new THREE.TorusGeometry(.22,.055,5,10),detail,[x+(k-3)*width/7,y-.97,z]);}}}
+ sign(arch,'老 门 东',[0,11.4,.86],{width:6.4,height:1.9,font:140,color:'#46564b',background:'#b7b7a2'});
+ for(const x of [-5,5])sign(arch,x<0?'金 陵 故 事':'城 南 烟 火',[x,7.7,.66],{width:.64,height:7.5,font:115,color:'#b8b8a3',background:'#495047'});
  // The southern city wall closes the street vista.
  box(root,150,15,8,0,7.5,-73,brick);box(root,153,.6,10,0,15.2,-73,trim);for(let i=0;i<38;i++)box(root,2.4,1.8,3,-73+i*3.9,16.3,-69.8,brick);box(root,134,.3,12,0,.18,-58,paving);
  for(const side of [-1,1])for(const z of [-51,-25,0,25,52]){const x=side*7.7;add(root,new THREE.CylinderGeometry(.1,.17,4.6,8),wood,[x,2.3,z]);lamps.push(lantern(root,x,4.4,z,.75));}
  for(let i=0;i<5;i++){const z=36-i*19;for(let j=0;j<5;j++)lamps.push(lantern(root,(j-2)*3,6.6-Math.cos((j-2)/2)*.8,z,.47));}
  const pots=mat('#947256');for(const [x,z]of [[-9,34],[9,10],[-9,-16],[9,-38],[-27,62],[28,64]]){add(root,new THREE.CylinderGeometry(.8,.6,1,10),pots,[x,.5,z]);add(root,new THREE.SphereGeometry(1.1,10,8),mat('#577a50'),[x,1.6,z]);}
  const points=[[-30,0,65,7],[29,0,66,8],[-38,0,-58,7],[35,0,-58,8],[-57,0,13,7],[58,0,-14,7]];const wind=trees(root,points,{seed:28});for(const [x,z]of [[-23,63],[25,62],[-18,-58],[18,-58]])bench(root,x,z,0);
- const paths=[makePath([[0,.35,76],[2,.35,45],[-1,.35,18],[2,.35,-12],[0,.35,-54],[3,.35,-24],[0,.35,76]]),makePath([[-64,.35,12],[-24,.35,12],[0,.35,12],[52,.35,12],[0,.35,12],[-64,.35,12]])];const people=visitors(root,paths,{count:30,seed:80});
+ const paths=[makePath([[0,.35,76],[2,.35,45],[-1,.35,18],[2,.35,-12],[0,.35,-54],[3,.35,-24],[0,.35,76]]),makePath([[-64,.35,12],[-24,.35,12],[0,.35,12],[52,.35,12],[0,.35,12],[-64,.35,12]])];const people=visitors(root,paths,{count:0,seed:80});
  // A few shop tables give the dining stops a readable human scale.
  for(const [x,z]of [[-8,23],[8,-1],[-8,-26]]){box(root,2.2,1,.9,x,.5,z,wood);for(let i=0;i<3;i++)add(root,new THREE.CylinderGeometry(.19,.16,.16,12),mat('#ead8ae'),[x+(i-1)*.5,1.08,z]);}
  optimizeStatic(root);return{root,tick(t,{night,moving}){wind(t);people(t,moving);for(const m of lamps)m.emissiveIntensity=.05+night*1.1;for(const m of warmWindows)m.emissiveIntensity=.03+night*.62;}};
