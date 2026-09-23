@@ -8,6 +8,9 @@ services:
       KAITU_API_TOKEN: ${KAITU_API_TOKEN:?Run node scripts/init-env.mjs first}
       DATA_DIR: /data
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-512}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
     ports:
       - "127.0.0.1:8080:8080"
     volumes:

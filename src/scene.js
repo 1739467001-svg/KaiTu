@@ -1,8 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { places, graph } from './data.js';
+import { graph } from './data.js';
 import {createEnvironment} from './environment.js';
+
+import {getVenue} from './venues.js';
+import {createQixia} from './scenes/qixia.js';
+import {createMendong} from './scenes/mendong.js';
+import {upgradeResort} from './scenes/resort-upgrade.js';
+import {optimizeStatic} from './scenes/common.js';
+import {createPostprocessing} from './postprocessing.js';
+import {routeForStops} from './journeys.js';
 
 export function createWorld(container, onSelect){
  const scene=new THREE.Scene();scene.background=new THREE.Color('#dce6dc');scene.fog=new THREE.Fog('#dce6dc',260,580);
@@ -55,7 +63,7 @@ export function createWorld(container, onSelect){
  for(let i=0;i<64;i++){const a=i/64*Math.PI*2;const r=1+.06*Math.sin(a*3)+.045*Math.cos(a*5);const x=Math.cos(a)*53*r,z=Math.sin(a)*39*r+38;outline.push([x,-.05,z]);i?lakeShape.lineTo(x,-z):lakeShape.moveTo(x,-z);}lakeShape.closePath();
  const lakeGeo=new THREE.ShapeGeometry(lakeShape,64);lakeGeo.rotateX(-Math.PI/2);
  const waterMat=new THREE.ShaderMaterial({uniforms:{time:{value:0},night:{value:0}},vertexShader:`varying vec3 p; void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:`varying vec3 p;uniform float time;uniform float night;void main(){float w=sin(p.x*.40+p.z*.7+time*.65)*sin(p.z*.9-time*.35);float lines=pow(max(0.,sin(p.z*2.+p.x*.18+time*.25)),20.);vec3 c=mix(vec3(.22,.53,.52),vec3(.43,.68,.61),w*.18+.45);c+=lines*.04; c=mix(c,c*.39,night);float glint=pow(max(0.,sin(p.x*.22+p.z*.7+time*.2)),30.)*.09*(1.-night);c+=glint;gl_FragColor=vec4(c,1.);}`});
- mesh(lakeGeo,waterMat,[0,-.03,0]);line(outline,'#b6c0a0',.65,resort,true);
+ const oldLake=mesh(lakeGeo,waterMat,[0,-.03,0]);line(outline,'#b6c0a0',.65,resort,true);
  // Footpaths are schematic, not measured routes.
  const walk=[];for(let a=Math.PI*.05;a<Math.PI*1.98;a+=.08)walk.push([Math.cos(a)*84,.1,Math.sin(a)*75+11]);line(walk,'#cdc7ad',2.2);
  const boardwalk=[];for(let a=Math.PI*1.15;a<Math.PI*1.88;a+=.07)boardwalk.push([Math.cos(a)*36,.12,Math.sin(a)*34+centerZ]);line(boardwalk,'#d1c2a6',1.1);
@@ -70,19 +78,24 @@ export function createWorld(container, onSelect){
  for(let x=-16;x<18;x+=4)box(.2,6,.8,x,2.8,-16.6,wood,interior);
  for(const [id,g] of Object.entries(graph)){if(['local','noodle','fruit','dessert'].includes(id)){const [x,,z]=g.position;box(5,1.7,3.2,x, .7,z-3,wood,interior);box(5.4,.15,3.5,x,1.63,z-3,stone,interior);for(let i=-1;i<=1;i++){mesh(new THREE.CylinderGeometry(.56,.5,.1,24),material('#faf1d8'),[x+i*1.35,1.77,z-3],interior);mesh(new THREE.SphereGeometry(.39,12,8),material(id==='fruit'?'#b87339':id==='local'?'#996c43':'#97a764'),[x+i*1.35,1.92,z-3],interior).scale.y=.5;}}}
  for(const x of [-5,5])for(const z of [-11,-3,8]){mesh(new THREE.CylinderGeometry(1.5,1.5,.18,32),stone,[x,1.4,z],interior);mesh(new THREE.CylinderGeometry(.22,.4,1.4,12),wood,[x,.65,z],interior);for(let a=0;a<6.2;a+=Math.PI/2)box(.8,.15,.8,x+Math.cos(a)*2, .65,z+Math.sin(a)*2,wood,interior);}
+ let activeVenue='xianlin';
+ const builds={};
+ const outdoorRoute=new THREE.Group();scene.add(outdoorRoute);let routeCurve=null,routeBeacon=null;
+ let assetIsDemo=false;
  let routeLine=null,routeDots=[],mode='resort',flight=null,splat=null,panorama=null,spark=null,assetUrl=null;
  const highlights=new THREE.Group();interior.add(highlights);
  const captureRoute=new THREE.Group();resort.add(captureRoute);captureRoute.visible=false;
  const capturePoints=[];for(let a=0;a<Math.PI*2;a+=.08)capturePoints.push([Math.cos(a)*84,.5,Math.sin(a)*75+11]);line(capturePoints,'#e2bc64',.24,captureRoute,true);
  const counterElements=Object.entries(graph).filter(([id])=>['local','noodle','fruit','dessert'].includes(id)).map(([id,g])=>{const el=document.createElement('div');el.className='marker';el.style.pointerEvents='none';el.textContent=({local:'金陵风味台',noodle:'现煮面档',fruit:'鲜果台',dessert:'烘焙甜品台'})[id];el.hidden=true;document.querySelector('#markers').append(el);return{id,el,position:[g.position[0],2.5,g.position[2]-3]};});
- const markerElements=places.map((place,i)=>{const el=document.createElement('button');el.className='marker';el.innerHTML=`<span class="number">0${i+1}</span>${place.name}`;el.onclick=()=>onSelect(place.id);document.querySelector('#markers').append(el);return{el,place};});
+ let markerElements=[];
+ function rebuildMarkers(){markerElements.forEach(({el})=>el.remove());markerElements=getVenue(activeVenue).places.map((place,i)=>{const el=document.createElement('button');el.className='marker';el.innerHTML=`<span class="number">0${i+1}</span>${place.name}`;el.onclick=()=>onSelect(place.id);document.querySelector('#markers').append(el);return{el,place};});}rebuildMarkers();
  function fly(pos,target){flight={from:camera.position.clone(),to:new THREE.Vector3(...pos),targetFrom:controls.target.clone(),target:new THREE.Vector3(...target),start:performance.now()};}
- function setMode(next){mode=next;ground.visible=next!=='asset';controls.maxPolarAngle=Math.PI/2-.04;resort.visible=next==='resort';interior.visible=next==='interior';assets.visible=next==='asset';if(routeLine)routeLine.visible=next==='interior';controls.minDistance=next==='resort'?8:.1;controls.maxDistance=next==='resort'?350:200;controls.enablePan=next!=='panorama';markerElements.forEach(({el})=>el.hidden=next!=='resort');counterElements.forEach(({el})=>el.hidden=next!=='interior');scene.fog=next==='resort'?new THREE.Fog(scene.background,260,580):null;}
- function focus(id){setMode('resort');const p=places.find(x=>x.id===id)||places[0];fly(p.camera,p.look);markerElements.forEach(({el,place})=>el.classList.toggle('selected',place.id===id));}
+ function setMode(next){mode=next;ground.visible=next!=='asset';controls.maxPolarAngle=Math.PI/2-.04;resort.visible=next==='resort'&&activeVenue==='xianlin';Object.entries(builds).forEach(([id,b])=>b.root.visible=next==='resort'&&activeVenue===id);outdoorRoute.visible=next==='resort';interior.visible=next==='interior';assets.visible=next==='asset';if(routeLine)routeLine.visible=next==='interior';controls.minDistance=next==='resort'?8:.1;controls.maxDistance=next==='resort'?350:200;controls.enablePan=next!=='panorama';markerElements.forEach(({el})=>el.hidden=next!=='resort');counterElements.forEach(({el})=>el.hidden=next!=='interior');scene.fog=next==='resort'?new THREE.Fog(scene.background,260,580):null;}
+ function focus(id){setMode('resort');const p=getVenue(activeVenue).places.find(x=>x.id===id)||getVenue(activeVenue).places[0];fly(p.camera,p.look);markerElements.forEach(({el,place})=>el.classList.toggle('selected',place.id===id));}
  function restaurant(){setMode('interior');fly([37,35,48],[0,0,0]);}
  function selectCounters(nodes,focusNode){while(highlights.children.length){const m=highlights.children[0];highlights.remove(m);m.geometry.dispose();m.material.dispose();}counterElements.forEach(c=>c.el.classList.toggle('selected',nodes.includes(c.id)));for(const id of nodes){const p=graph[id].position;const ring=mesh(new THREE.TorusGeometry(2.8,.10,8,40),material('#e6bd59',{emissive:'#db9e37',emissiveIntensity:1}),[p[0],.1,p[2]-3],highlights);ring.rotation.x=-Math.PI/2;}if(focusNode){const p=graph[focusNode].position;setMode('interior');fly([p[0]+20,27,p[2]+32],[p[0],1,p[2]-3]);}}
  function drawRoute(nodes){if(routeLine){scene.remove(routeLine);routeLine.geometry.dispose();routeLine.material.dispose();routeLine=null;}routeDots.forEach(m=>{scene.remove(m);m.geometry.dispose();m.material.dispose();});routeDots=[];const ps=nodes.map(n=>new THREE.Vector3(...graph[n].position));if(ps.length>1){const c=new THREE.CurvePath();for(let i=1;i<ps.length;i++)c.add(new THREE.LineCurve3(ps[i-1],ps[i]));routeLine=mesh(new THREE.TubeGeometry(c,150,.10,8,false),material('#e5a343',{emissive:'#ca8835',emissiveIntensity:.4}),[0,0,0],scene);}restaurant();}
- async function importAsset(file){
+ async function importAsset(file,{demo=false}={}){
   const ext=file.name.split('.').pop().toLowerCase();if(file.size>300*1024*1024)throw new Error('文件超过 300 MB，请先裁剪或压缩为 SPZ。');
   const url=URL.createObjectURL(file);let candidate;
   try{
@@ -94,24 +107,37 @@ export function createWorld(container, onSelect){
     const {SparkRenderer,SplatMesh}=await import('@sparkjsdev/spark');if(!spark){spark=new SparkRenderer({renderer});scene.add(spark);}
     candidate=new SplatMesh({fileBytes:new Uint8Array(await file.arrayBuffer()),fileName:file.name});await candidate.initialized;
    }else throw new Error('支持全景 JPG / PNG / WebP 与高斯 PLY / SPZ / SPLAT；INSV 请先拼接和重建。');
-   clearAsset();assetUrl=url;assets.add(candidate);setMode('asset');
+   clearAsset();assetIsDemo=demo;assetUrl=url;assets.add(candidate);setMode('asset');
    if(['jpg','jpeg','png','webp'].includes(ext)){panorama=candidate;camera.position.set(0,0,.01);controls.target.set(0,0,0);controls.minDistance=.01;controls.maxDistance=.01;controls.enablePan=false;controls.maxPolarAngle=Math.PI-.05;flight=null;}
    else{splat=candidate;const bounds=candidate.getBoundingBox();const size=bounds.getSize(new THREE.Vector3()).length();const center=bounds.getCenter(new THREE.Vector3());controls.maxDistance=Math.max(200,size*5);controls.minDistance=.05;fly([center.x+size*.7,center.y+size*.4,center.z+size*.8],center.toArray());}
    return ext;
   }catch(e){if(candidate){candidate.dispose?.();candidate.geometry?.dispose();candidate.material?.map?.dispose();candidate.material?.dispose();}URL.revokeObjectURL(url);throw e;}
  }
  function clearAsset(){assets.clear();if(splat){splat.dispose();splat=null;}if(panorama){panorama.geometry.dispose();panorama.material.map.dispose();panorama.material.dispose();panorama=null;}if(assetUrl){URL.revokeObjectURL(assetUrl);assetUrl=null;}controls.maxPolarAngle=Math.PI/2-.04;controls.enablePan=true;}
- function resize(){const w=container.clientWidth,h=container.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.fov=w/h<.9?55:39;camera.updateProjectionMatrix();}new ResizeObserver(resize).observe(container);resize();
+ optimizeStatic(resort);
+ const resortUpgrade=upgradeResort(resort,lakeGeo,oldLake);
+ const post=createPostprocessing(renderer,scene,camera);
+ function resize(){const w=Math.max(1,container.clientWidth),h=Math.max(1,container.clientHeight);renderer.setSize(w,h);camera.aspect=w/h;camera.fov=w/h<.9?55:39;camera.updateProjectionMatrix();post.resize(w,h);}new ResizeObserver(resize).observe(container);resize();
  const environment=createEnvironment({scene,resort,sun,hemisphere,renderer,ground,glass,waterMat,fly});
  let frames=0,last=performance.now(),fps=0,lastFrame=performance.now();const v=new THREE.Vector3();
  renderer.setAnimationLoop(t=>{
-  const dt=Math.min(.1,(t-lastFrame)/1000);lastFrame=t;if(document.hidden)return;waterMat.uniforms.time.value=t/1000;environment.tick(t,dt,mode);
+  const dt=Math.min(.1,(t-lastFrame)/1000);lastFrame=t;if(document.hidden)return;waterMat.uniforms.time.value=t/1000;environment.tick(t,dt,mode,activeVenue);const night=waterMat.uniforms.night.value;const state={sun,night,moving:!matchMedia('(prefers-reduced-motion:reduce)').matches};if(mode==='resort'){if(activeVenue==='xianlin')resortUpgrade.tick(t/1000,state);else builds[activeVenue]?.tick(t/1000,state);if(routeBeacon&&routeCurve)routeBeacon.position.copy(routeCurve.getPoint((t/16000)%1));}
   if(flight){let p=Math.min(1,(t-flight.start)/1000);p=p*p*(3-2*p);camera.position.lerpVectors(flight.from,flight.to,p);controls.target.lerpVectors(flight.targetFrom,flight.target,p);if(p===1)flight=null;}
   controls.update();
   if(mode==='resort')for(const{el,place}of markerElements){v.set(...place.pos).project(camera);el.style.left=`${(v.x*.5+.5)*container.clientWidth}px`;el.style.top=`${(-v.y*.5+.5)*container.clientHeight}px`;el.hidden=environment.showActive||v.z>1||v.z<0;}
   if(mode==='interior')for(const {el,position} of counterElements){v.set(...position).project(camera);el.style.left=((v.x*.5+.5)*container.clientWidth)+'px';el.style.top=((-v.y*.5+.5)*container.clientHeight)+'px';el.hidden=v.z>1||v.z<0;}
-  renderer.render(scene,camera);frames++;if(t-last>1200){fps=Math.round(frames*1000/(t-last));frames=0;last=t;document.querySelector('#render-state').textContent=`${mode==='asset'?'实拍资产':mode==='interior'?'餐厅示例空间':'规划参考模型'} · ${fps} FPS`;}
+  post.render(mode,waterMat.uniforms.night.value);frames++;if(t-last>1200){fps=Math.round(frames*1000/(t-last));frames=0;last=t;document.querySelector('#render-state').textContent=`${mode==='asset'?(assetIsDemo?'合成全景样例':'用户素材'):mode==='interior'?'餐厅示例空间':getVenue(activeVenue).name+' · 参考重绘'} · ${fps} FPS`;}
  });
  controls.addEventListener('start',()=>flight=null);
- return {renderer,focus,restaurant,drawRoute,selectCounters,importAsset,environment,showCapturePath(){setMode('resort');captureRoute.visible=!captureRoute.visible;fly([145,142,182],[0,0,-5]);return captureRoute.visible;},get mode(){return mode;},overview(){setMode('resort');controls.maxPolarAngle=Math.PI/2-.04;controls.maxDistance=350;controls.minDistance=8;fly([185,165,220],[0,0,0]);},plan(){if(mode==='asset'&&panorama)return;fly(mode==='resort'?[0,220,.1]:[0,65,.1],[0,0,0]);},orbit(){controls.autoRotate=!controls.autoRotate;return controls.autoRotate;},rotateAsset(){if(splat)splat.rotation.x+=Math.PI;},clearAsset};
+ function overview(){setMode('resort');controls.maxPolarAngle=Math.PI/2-.04;controls.maxDistance=350;controls.minDistance=8;const v=getVenue(activeVenue);fly(v.overview,v.target);}
+ function clearJourney(){while(outdoorRoute.children.length){const m=outdoorRoute.children[0];outdoorRoute.remove(m);m.geometry?.dispose();m.material?.dispose();}routeCurve=null;routeBeacon=null;}
+ function drawJourney(stops){clearJourney();const {points,anchors}=routeForStops(getVenue(activeVenue),stops);if(points.length<2)return;routeCurve=new THREE.CurvePath();for(let i=1;i<points.length;i++)routeCurve.add(new THREE.LineCurve3(new THREE.Vector3(...points[i-1]).add(new THREE.Vector3(0,.18,0)),new THREE.Vector3(...points[i]).add(new THREE.Vector3(0,.18,0))));const routeMat=new THREE.MeshStandardMaterial({color:'#ffd17e',emissive:'#d99c39',emissiveIntensity:.55,roughness:.4});const path=new THREE.Mesh(new THREE.TubeGeometry(routeCurve,250,.3,6,false),routeMat);outdoorRoute.add(path);anchors.forEach(p=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(1.4,.16,6,24),routeMat.clone());ring.rotation.x=-Math.PI/2;ring.position.set(p[0],p[1]+.4,p[2]);outdoorRoute.add(ring);});routeBeacon=new THREE.Mesh(new THREE.SphereGeometry(.8,12,8),new THREE.MeshBasicMaterial({color:'#fff4cf'}));outdoorRoute.add(routeBeacon);overview();}
+ function switchVenue(id){if(!['xianlin','qixia','mendong'].includes(id))return;activeVenue=id;if(id!=='xianlin'&&!builds[id]){builds[id]=id==='qixia'?createQixia():createMendong();scene.add(builds[id].root);}clearJourney();captureRoute.visible=false;rebuildMarkers();environment.setTime(16);overview();}
+ async function demoPanorama(){
+  setMode('resort');environment.tick(performance.now(),0,'resort',activeVenue);const oldTarget=renderer.getRenderTarget(),oldTone=renderer.toneMapping;const cubeTarget=new THREE.WebGLCubeRenderTarget(512,{type:THREE.HalfFloatType});const cubeCamera=new THREE.CubeCamera(.1,800,cubeTarget);cubeCamera.position.set(...getVenue(activeVenue).panorama);renderer.toneMapping=THREE.NoToneMapping;cubeCamera.update(renderer,scene);
+  const geo=new THREE.PlaneGeometry(2,2),shader=new THREE.ShaderMaterial({uniforms:{map:{value:cubeTarget.texture}},vertexShader:'varying vec2 v;void main(){v=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:'uniform samplerCube map;varying vec2 v;void main(){float lon=(v.x-.5)*6.2831853;float lat=(v.y-.5)*3.14159265;vec3 d=vec3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));vec3 c=textureCube(map,d).rgb;c=c/(c+vec3(1.));c=pow(c,vec3(1./2.2));gl_FragColor=vec4(c,1.);}'});const quad=new THREE.Mesh(geo,shader),flat=new THREE.Scene();flat.add(quad);const target=new THREE.WebGLRenderTarget(2048,1024),pixels=new Uint8Array(2048*1024*4);renderer.setRenderTarget(target);renderer.render(flat,new THREE.Camera());renderer.readRenderTargetPixels(target,0,0,2048,1024,pixels);renderer.setRenderTarget(oldTarget);renderer.toneMapping=oldTone;
+  const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=1024;const ctx=canvas.getContext('2d'),data=ctx.createImageData(2048,1024);for(let y=0;y<1024;y++)data.data.set(pixels.subarray((1023-y)*8192,(1024-y)*8192),y*8192);ctx.putImageData(data,0,0);ctx.fillStyle='#142c32cc';ctx.fillRect(0,954,2048,70);ctx.fillStyle='#e4edc5';ctx.font='26px sans-serif';ctx.fillText('开图 · '+getVenue(activeVenue).name+' · 三维合成全景示例 / 非 X4 Air 实拍',48,999);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.92));cubeTarget.dispose();target.dispose();geo.dispose();shader.dispose();return new File([blob],activeVenue+'-demo-360.jpg',{type:'image/jpeg'});
+ }
+ function exportFrame(portrait=false){renderer.render(scene,camera);const c=document.createElement('canvas'),source=renderer.domElement;c.width=portrait?1080:1920;c.height=portrait?1920:1080;const ctx=c.getContext('2d'),ratio=c.width/c.height;let w=source.width,h=source.height;if(w/h>ratio)w=h*ratio;else h=w/ratio;ctx.drawImage(source,(source.width-w)/2,(source.height-h)/2,w,h,0,0,c.width,c.height);ctx.fillStyle='#153333df';ctx.fillRect(0,c.height-100,c.width,100);ctx.fillStyle='#e7efcd';ctx.font='28px sans-serif';ctx.fillText('开图 · '+getVenue(activeVenue).name+' / '+(mode==='asset'?(assetIsDemo?'合成示例 · 非实拍':'用户素材取景'):'三维参考场景'),40,c.height-40);c.toBlob(blob=>{const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='kaitu-'+(portrait?'portrait':'landscape')+'.jpg';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},'image/jpeg',.95);}
+ return {renderer,focus,restaurant,drawRoute,selectCounters,importAsset,environment,switchVenue,drawJourney,clearJourney,demoPanorama,exportFrame,get venue(){return activeVenue;},quality(){return post.toggle();},get highQuality(){return post.high;},street(){setMode('resort');const v=getVenue(activeVenue);fly(v.street,v.streetTarget);},showCapturePath(){setMode('resort');if(activeVenue==='xianlin'){captureRoute.visible=!captureRoute.visible;overview();return captureRoute.visible;}drawJourney(getVenue(activeVenue).places.filter(p=>p.type!=='landmark'||p===getVenue(activeVenue).places[0]).map(p=>p.id));return true;},get mode(){return mode;},overview,plan(){if(mode==='asset'&&panorama)return;fly(mode==='resort'?[0,220,.1]:[0,65,.1],[0,0,0]);},orbit(){controls.autoRotate=!controls.autoRotate;return controls.autoRotate;},rotateAsset(){if(splat)splat.rotation.x+=Math.PI;},clearAsset};
 }

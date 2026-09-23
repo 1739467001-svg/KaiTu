@@ -11,11 +11,14 @@ import {processJob} from '../server/worker.mjs';
 import {solarPosition,formatHour} from '../src/solar.js';
 const token='test-only-random-access-token-000000000000';
 test('cloud authentication, persistent project, raw upload, queue, manifest and validation',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'kaitu-test-'));const store=openStore(dir),server=createApp({directory:dir,store,token,maxBytes:1024});
+ const dir=await mkdtemp(join(tmpdir(),'kaitu-test-'));const store=openStore(dir),server=createApp({directory:dir,store,token,maxBytes:1024,aiEnv:{}});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const url=`http://127.0.0.1:${server.address().port}`;
  const request=(path,opts={})=>fetch(url+'/api'+path,{...opts,headers:{Authorization:'Bearer '+token,...opts.headers}});
  try{
   assert.equal((await fetch(url+'/api/health')).status,200);assert.equal((await fetch(url+'/api/projects')).status,401);
+  assert.equal((await fetch(url+'/api/assistant',{method:'POST',body:'{}'})).status,401);
+  assert.equal((await request('/assistant',{method:'POST',body:JSON.stringify({venue:'mendong',query:'喝茶'})})).status,503);
+  assert.equal((await request('/assistant',{method:'POST',body:JSON.stringify({venue:'unknown',query:'喝茶'})})).status,400);
   assert.equal((await request('/projects',{headers:{Origin:'https://evil.test'}})).status,403);
   assert.equal((await request('/projects',{method:'POST',body:'{"name":""}'})).status,400);
   const created=await request('/projects',{method:'POST',body:'{"name":"仙林测试场地"}'});assert.equal(created.status,201);const p=await created.json();

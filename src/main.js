@@ -1,54 +1,34 @@
 import './style.css';
 import {createWorld} from './scene.js';
 import {createWorkbench} from './workbench.js';
-import {places,foods,graph,sources} from './data.js';
-import {planRoute} from './routing.js';
+import {createExperience} from './experience.js';
+import {venues,getVenue} from './venues.js';
+import {sources} from './data.js';
 const $=s=>document.querySelector(s);
-let tab='explore',selected='resort',choice='all',world,workbench,toastTimer;
-const selectedFoods=new Set();
-function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),6500);}
-function setSceneCopy(title,subtitle,chip,note){$('#scene-title').textContent=title;$('#scene-subtitle').textContent=subtitle;$('#evidence-chip').textContent=chip;$('#scene-note').textContent=note;}
-const resortCopy=()=>{setSceneCopy('从一段影像，到一个世界。','Club Med 南京仙林 · 场地参考模型','规划与实景参考 · 待校准','建筑与布展均待实拍校准 · 水幕为创意预演');$('.time-console').hidden=false;};
-function selectPlace(id){selected=id;world?.focus(id);if(tab!=='explore')switchTab('explore',false);else render();resortCopy();}
-function updateFood(focusNode){
- const picked=foods.filter(f=>selectedFoods.has(f.id));const result=picked.length?planRoute(graph,picked.map(f=>f.node)):null;
- world?.drawRoute(result?.nodes||[]);world?.selectCounters(picked.map(f=>f.node),focusNode);
- const element=$('#route-result');if(element)element.innerHTML=result?`<div class="route-result"><b>${result.stops.length} 个餐台已联动到右侧</b><br/>入口 → ${result.stops.map(s=>foods.find(f=>f.node===s).counter).join(' → ')}<small>金色路径连接所选餐台 · 未做现实距离标定</small></div>`:'<div class="route-result">点击 ＋，右侧立即高亮餐台并绘制路径。</div>';
-}
-function render(){
- const panel=$('#panel');$('.sidebar').className=`sidebar ${tab}`;
+let tab='explore',venueId='xianlin',selected='resort',world,workbench,experience,toastTimer;
+function toast(s){$('#toast').textContent=s;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),6000);}
+function sceneCopy(){const v=getVenue(venueId);$('#scene-title').textContent=v.headline;$('#scene-subtitle').textContent=v.fullName+' / '+v.season;$('#evidence-chip').textContent='公开资料参考重绘 · 待实拍校准';$('#scene-note').textContent=v.id==='qixia'?'秋色为艺术预演 · 非当前实况 · 路线待测量':v.id==='mendong'?'街巷风貌参考 · 商铺与套餐为演示':'建筑待实拍校准 · 水幕与布展为创意预演';$('.time-console').hidden=false;$('#water-show').hidden=venueId!=='xianlin';$('#time-venue').textContent=v.name+' · 光影时刻';syncTime();}
+function renderRail(){$('#venue-selector').innerHTML=venues.map((v,i)=>`<button data-venue="${v.id}" class="venue-choice ${v.id===venueId?'active':''}" aria-pressed="${v.id===venueId}"><i>0${i+1}</i><span><strong>${v.name}</strong><small>${v.theme}</small></span><b>↗</b></button>`).join('');document.querySelectorAll('[data-venue]').forEach(b=>b.onclick=()=>changeVenue(b.dataset.venue));}
+function changeVenue(id){if(id===venueId)return;window.speechSynthesis?.cancel();venueId=id;selected=getVenue(id).places[0].id;try{world?.switchVenue(id);}catch(e){console.error(e);toast('场景加载失败，请刷新后重试。');}experience.setVenue(id);renderRail();render();sceneCopy();}
+function selectPlace(id){selected=id;world?.focus(id);sceneCopy();if(tab==='explore')render();else toast(getVenue(venueId).places.find(p=>p.id===id)?.name||'已切换视角');}
+function render(){const panel=$('#panel'),v=getVenue(venueId);$('.sidebar').className='sidebar '+tab;
  if(tab==='explore'){
-  panel.innerHTML=`<h3 class="section-heading">一张图，认识一个场地 <span>01 / EXPLORE</span></h3>${places.map((p,i)=>`<button class="place ${selected===p.id?'selected':''}" data-place="${p.id}"><span class="place-index">0${i+1}</span><span class="place-text"><strong>${p.name}</strong><small>${p.en}</small></span><span class="place-arrow">↗</span></button>`).join('')}<div class="place-detail"><b>${places.find(p=>p.id===selected).name}</b><br/>${places.find(p=>p.id===selected).detail}</div><button class="primary" id="start-capture">把真实场地带进来 <span>↗</span></button><div class="explore-note"><b>2026 BOLD MAKER</b><p>湖岸门头、展示旗与水幕内容已加入赛事视觉。布展为提案，等明天的照片逐一校准。</p><button class="text-button" id="toggle-events">显示 / 隐藏赛事布展</button></div>`;
-  panel.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>selectPlace(b.dataset.place));$('#start-capture').onclick=()=>switchTab('capture');$('#toggle-events').onclick=()=>toast(world?.environment.toggleEvents()?'已显示赛事布展提案':'已隐藏赛事布展提案');
+ panel.innerHTML=`<div class="purpose-strip"><span>给游客 · 逛得明白</span><span>给商家 · 看见转化</span></div><button class="primary demo-start" id="start-demo">一键演示：${v.id==='xianlin'?'亲子湖畔行':v.id==='qixia'?'赏秋与茶点':'金陵逛吃'} <span>↗</span><small>选行程 → 看路线 → 领券 → 核销</small></button><div class="section-heading explore-heading">走近${v.name} <span>${v.places.length} 个空间锚点</span></div>${v.places.map((p,i)=>`<button class="place ${selected===p.id?'selected':''}" data-place="${p.id}"><span class="place-index">0${i+1}</span><span class="place-text"><strong>${p.name}</strong><small>${p.type==='food'?'餐饮服务点':p.type==='view'?'风景与影像':'建筑与地标'}</small></span><span class="place-arrow">↗</span></button>`).join('')}<div class="place-detail"><b>${v.places.find(p=>p.id===selected)?.name||v.name}</b><br/>${v.places.find(p=>p.id===selected)?.detail||v.summary}</div><div class="explore-note"><b>从现场，到服务</b><p>${v.commercial}。用 X4 Air 记录空间，将实拍影像替换进导览，保留同一套服务入口。</p><button class="secondary" id="start-capture">打开影像工作台 ↗</button>${v.id==='xianlin'?'<p><button class="text-button" id="toggle-events">显示 / 隐藏赛事布展</button></p>':''}</div>`;
+ panel.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>selectPlace(b.dataset.place));$('#start-demo').onclick=()=>{switchTab('food');experience.selectPlan(experience.plan.id);};$('#start-capture').onclick=()=>switchTab('capture');if($('#toggle-events'))$('#toggle-events').onclick=()=>toast(world?.environment.toggleEvents()?'已显示赛事布展提案':'已隐藏赛事布展');
  }else if(tab==='capture')workbench.render(panel);
- else if(tab==='food'){
-  const visible=foods.filter(f=>choice==='all'||f.type===choice);
-  panel.innerHTML=`<h3 class="section-heading">场地接入后，服务如何发生？</h3><span class="data-label">服务示例 01 · 取餐路线</span><p class="work-lead">这是空间服务的一种接入样例：选择需求，看到对应点位和路径。餐台与菜单目前使用示例数据。</p><label class="field">风味偏好<select id="preference"><option value="all">随心探索 · 全部风味</option><option value="local">金陵风味</option><option value="vegetable">蔬果偏好</option><option value="sweet">甜品时刻</option></select></label><div>${visible.map(f=>`<div class="food-card ${selectedFoods.has(f.id)?'picked':''}"><span class="food-symbol">${f.symbol}</span><div class="food-info"><strong>${f.name}</strong><div class="small">${f.counter}</div></div><button data-food="${f.id}" aria-label="${selectedFoods.has(f.id)?'移除':'选择'}${f.name}" aria-pressed="${selectedFoods.has(f.id)}">${selectedFoods.has(f.id)?'✓':'+'}</button></div>`).join('')}</div><div class="selection-summary"><span>已选 ${selectedFoods.size} 道</span><button class="text-button" id="clear-food">清空选择</button></div><div id="route-result"></div><button class="primary" id="route">查看完整路径 ↗</button><p class="source-note">基于标签匹配与图路径计算，尚未接入 AI。真实菜单及配方待餐厅确认；这里的路径不能用于现场导航。</p>`;
-  $('#preference').value=choice;$('#preference').onchange=e=>{choice=e.target.value;render();updateFood();};
-  panel.querySelectorAll('[data-food]').forEach(b=>b.onclick=()=>{const id=b.dataset.food,adding=!selectedFoods.has(id);adding?selectedFoods.add(id):selectedFoods.delete(id);render();updateFood(adding?foods.find(f=>f.id===id).node:null);toast(adding?'餐台已高亮，示例路径已更新。':'已移除该餐台，路径同步更新。');});
-  $('#clear-food').onclick=()=>{selectedFoods.clear();render();updateFood();};$('#route').onclick=()=>{updateFood();world?.restaurant();};updateFood();
- }else{
-  panel.innerHTML=`<h3 class="section-heading">每一处还原，都有依据。</h3><span class="data-label">公开资料参考 · 待实拍与测量校准</span>${sources.map(s=>`<a class="source-card" href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title} ↗<small>${s.label}</small></a>`).join('')}<p class="source-note">弧形建筑参考 2019 年 NO.2018G23 历史规划图与官方建成照片，尚无竣工测绘图。当前不是精确数字孪生。</p><div class="evidence-row"><b>太阳与昼夜</b><span>南京城市级经纬度、2026-09-23 日期的太阳方位近似计算。尚未校准场地地理北向，不适用于建筑日照评估。</span></div><div class="evidence-row"><b>水幕与赛事布展</b><span>官方资料确认有水幕秀。19:30 为本演示的预设时刻，节目、喷头位置和当日场次均待现场确认。</span></div><div class="evidence-row"><b>明天优先补充</b><span>导览牌、楼层图、主入口立面、湖岸水幕设备、赛事背景板和签到区；附拍摄位置、朝向与一段实测距离。</span></div><a class="source-card" href="https://gml.noaa.gov/grad/solcalc/solareqns.PDF" target="_blank" rel="noopener noreferrer">太阳轨迹公式来源 ↗<small>NOAA · 太阳方位近似公式</small></a>`;
- }
+ else if(tab==='food')experience.renderVisitor(panel);
+ else if(tab==='merchant')experience.renderMerchant(panel);
+ else panel.innerHTML=`<div class="work-title"><h3>看得见，也有依据。</h3><span>FIELD ARCHIVE</span></div><span class="data-label">${v.evidence}</span><p class="work-lead">${v.summary}</p><a class="source-card" href="${v.sourceUrl}" target="_blank" rel="noopener">${v.sourceTitle} ↗<small>公开建筑、环境与地标参考</small></a>${v.id==='xianlin'?sources.map(s=>`<a class="source-card" href="${s.url}" target="_blank" rel="noopener">${s.title} ↗<small>${s.label}</small></a>`).join(''):''}<div class="evidence-row"><b>已落地的视觉技术</b><span>Three.js PBR 材质、平面水体反射、GTAO 环境遮蔽、夜景 Bloom、批量树木与静态几何合并、动态游客和晨昏光照。可在右侧切换画质。</span></div><div class="evidence-row"><b>模型精度</b><span>当前是按公开资料构建的风貌模型，未获得完整测绘图、真实材质贴图和相机位姿。细节增加不等同于测量精度提升。</span></div><div class="evidence-row"><b>下一轮现场补充</b><span>${v.capture}。补拍入口立面、导览牌、固定锚点与一段实测距离；店铺名称、餐饮配方、价格与开放信息由运营方确认。</span></div><div class="evidence-row"><b>光照与活动</b><span>南京太阳轨迹近似计算；场地北向尚待校准。栖霞秋色、夜景灯光和水幕均为预演，非实时状态。</span></div><a class="source-card" href="https://www.insta360.com/cn/product/insta360-x4-air" target="_blank" rel="noopener">Insta360 X4 Air 官方产品参数 ↗</a><a class="source-card" href="https://threejs.org/docs/pages/GTAOPass.html" target="_blank" rel="noopener">Three.js GTAO 与渲染技术 ↗</a>`;
 }
-function switchTab(next,move=true){tab=next;document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('active',b.dataset.tab===next));render();if(move){if(next==='food'){world?.restaurant();setSceneCopy('一个需求，落到真实点位。','取餐服务 · 交互样例','餐厅示例空间 · 非实测','选择菜品会同步高亮餐台、更新路径');$('.time-console').hidden=true;}else if(next!=='capture'){world?.overview();resortCopy();}}}
+function switchTab(next){window.speechSynthesis?.cancel();tab=next;document.querySelectorAll('.nav').forEach(b=>b.classList.toggle('active',b.dataset.tab===next));render();$('.sidebar').scrollTop=0;if(next!=='capture'&&world?.mode==='asset'){world.overview();sceneCopy();}}
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>switchTab(b.dataset.tab);
 $('#help').onclick=()=>$('#help-dialog').showModal();document.querySelectorAll('.dialog-close').forEach(b=>b.onclick=()=>$('#help-dialog').close());
-function overview(){world?.overview();resortCopy();}
-$('#overview').onclick=overview;$('#plan').onclick=()=>{world?.plan();if(world?.mode==='resort')resortCopy();};$('#reset').onclick=overview;
+$('#overview').onclick=()=>{world?.overview();sceneCopy();};$('#street').onclick=()=>{world?.street();sceneCopy();};$('#plan').onclick=()=>world?.plan();
 $('#orbit').onclick=e=>{const active=world?.orbit();e.currentTarget.classList.toggle('active',active);e.currentTarget.setAttribute('aria-pressed',String(!!active));};
-function syncTimeButtons(){const playing=!!world?.environment.playing;$('#play-day').textContent=playing?'Ⅱ 暂停演示':'▶ 自动演示';$('#play-day').setAttribute('aria-pressed',String(playing));}
-$('#time-slider').oninput=e=>{world?.environment.setTime(Number(e.target.value));syncTimeButtons();$('#water-show').setAttribute('aria-pressed','false');$('#water-show').classList.remove('active');};
-$('#play-day').onclick=()=>{world?.environment.toggleDay();syncTimeButtons();};
-$('#water-show').onclick=e=>{overview();const active=world?.environment.show();syncTimeButtons();e.currentTarget.classList.toggle('active',active);e.currentTarget.setAttribute('aria-pressed',String(!!active));toast(active?'水幕创意预演 · 19:30 为演示时刻，实际场次待确认。':'已结束水幕预演；拖动时间轴切换日照。');};
-try{world=createWorld($('#viewport'),selectPlace);}catch(e){$('#viewport').innerHTML='<div class="error-panel">此设备未能启动 WebGL2。请使用支持硬件加速的现代浏览器。场地档案与采集清单仍可使用。</div>';$('#render-state').textContent='三维渲染不可用';console.error(e);}
-workbench=createWorkbench({world,toast,onAsset:name=>{setSceneCopy('现场，正在展开。',name,'用户导入 · 尚未配准','素材预览不自动生成道路、楼层或真实尺度');$('.time-console').hidden=true;},onReturn:resortCopy});
-render();resortCopy();
-// Optional WebMCP tools reuse the visible actions and preserve evidence labels.
-if(document.modelContext?.registerTool){
- const lifecycle=new AbortController();window.addEventListener('pagehide',()=>lifecycle.abort(),{once:true});
- for(const tool of [
-  {name:'get_scene_evidence',description:'Read observed versus illustrative data in KaiTu.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({geometry:'historic-plan-and-photo-reference',interior:'illustrative',menu:'demo',waterShow:'creative-preview',realCaptureLoaded:!!workbench.assetName,view:tab})},
-  {name:'navigate_to_place',description:'Move the visible reference scene camera; not real-world navigation.',inputSchema:{type:'object',properties:{placeId:{type:'string',enum:places.map(p=>p.id)}},required:['placeId'],additionalProperties:false},execute:input=>{if(!input||!places.some(p=>p.id===input.placeId))throw new Error('未知场所');selectPlace(input.placeId);return{selectedPlace:input.placeId,evidence:'reference-model'};}}
- ]){try{Promise.resolve(document.modelContext.registerTool(tool,{signal:lifecycle.signal})).catch(()=>{});}catch{/* Optional browser capability. */}}
-}
+$('#quality').onclick=e=>{const high=world?.quality();e.currentTarget.textContent=high?'高画质':'流畅';toast(high?'高画质：启用环境遮蔽，增强建筑接缝与空间层次。':'流畅模式：保留反射和光影，关闭环境遮蔽。');};
+function syncTime(){const playing=!!world?.environment.playing;$('#play-day').textContent=playing?'Ⅱ 暂停':'▶ 演示 24h';$('#play-day').setAttribute('aria-pressed',String(playing));}
+$('#time-slider').oninput=e=>{world?.environment.setTime(Number(e.target.value));syncTime();};$('#play-day').onclick=()=>{world?.environment.toggleDay();syncTime();};
+$('#water-show').onclick=()=>{world?.overview();world?.environment.show();sceneCopy();toast('水幕为创意预演，19:30 不代表实际场次。');};
+try{world=createWorld($('#viewport'),selectPlace);$('#quality').textContent=world.highQuality?'高画质':'流畅';}catch(e){$('#viewport').innerHTML='<div class="error-panel">三维渲染未能启动，请使用支持 WebGL2 的现代浏览器。行程与商家演示仍可操作。</div>';$('#render-state').textContent='三维渲染不可用';console.error(e);}
+workbench=createWorkbench({world,toast,onAsset:(name,demo=false)=>{$('#scene-title').textContent=demo?'先看全景，再选取景。':'现场，正在展开。';$('#scene-subtitle').textContent=name;$('#evidence-chip').textContent=demo?'三维合成全景样例 · 非实拍':'用户素材 · 未配准';$('#scene-note').textContent=demo?'拖动选择方向 · 支持横版与竖版静态取景导出':'用户素材未经校准，不自动生成道路和尺度';$('.time-console').hidden=true;},onReturn:sceneCopy});
+experience=createExperience({world,toast,switchTab,restoreScene:sceneCopy,assistant:(...args)=>workbench.assistant(...args)});experience.setVenue(venueId);renderRail();render();sceneCopy();
