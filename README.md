@@ -92,6 +92,8 @@ flowchart LR
 ## 文档
 
 - [16 页路演产品说明书（PDF）](public/docs/kaitu-product-manual.pdf)：作品、用户价值、影像技术、商业化与路演脚本。
+- [用户调研与需求分析报告（PDF）](public/docs/kaitu-user-research-report.pdf)：证据分级、情景模拟访谈、竞品任务对照、影像工作台需求、验证方案与提交建议。模拟访谈已明确标注，不能替代赛事要求的 3 人次真实访谈。
+- [调研报告可编辑正文](docs/research/report_content.py)：报告内容与来源边界；[PDF 生成脚本](docs/research/build_report.py)可复现最终文件。
 - [说明书可编辑正文](docs/product/PRODUCT_MANUAL.md)：与 PDF 对应的文字版本。
 - [现场协作与拍摄清单](docs/现场协作与拍摄清单.md)：明天拍什么、如何交接。
 - [SDK 与重建接入方案](docs/SDK与重建接入方案.md)：设备、拼接、位姿与训练各自职责。

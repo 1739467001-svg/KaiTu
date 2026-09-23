@@ -12,6 +12,7 @@ artifacts/
 *.splat
 *.mp4
 .DS_Store
+__pycache__/
 data/
 *.sqlite*
 *.log
