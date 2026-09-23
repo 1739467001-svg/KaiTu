@@ -15,3 +15,4 @@ artifacts/
 data/
 *.sqlite*
 *.log
+output/releases/

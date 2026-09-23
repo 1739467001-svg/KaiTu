@@ -9,3 +9,5 @@ artifacts
 .env*
 .DS_Store
 *.pdf
+!public/docs/kaitu-product-manual.pdf
+output

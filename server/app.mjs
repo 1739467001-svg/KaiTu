@@ -9,7 +9,7 @@ import {pathToFileURL} from 'node:url';
 import {openStore} from './store.mjs';
 import {recommendWithProvider,aiConfigured} from './assistant.mjs';
 const allowed=new Set(['.insv','.insp','.mp4','.jpg','.jpeg','.png','.webp','.ply','.spz','.splat','.json']);
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.json':'application/json'};
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.json':'application/json','.pdf':'application/pdf','.md':'text/plain; charset=utf-8'};
 const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
 const body=async(req)=>{let chunks=[],bytes=0;for await(const c of req){bytes+=c.length;if(bytes>16384)throw Object.assign(new Error('JSON 请求过大'),{status:413});chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}');}catch{throw Object.assign(new Error('JSON 格式无效'),{status:400});}};
 function auth(req,token){const provided=Buffer.from(req.headers.authorization?.replace(/^Bearer /,'')||''),expected=Buffer.from(token);return provided.length===expected.length&&timingSafeEqual(provided,expected);}
@@ -21,7 +21,7 @@ export function createApp({directory=resolve(process.env.DATA_DIR||'data'),token
   let temp;
   try{
    const url=new URL(req.url,'http://localhost');const path=url.pathname;
-   if(path==='/api/health'&&req.method==='GET')return json(res,200,{service:'kaitu',version:'0.3.0',ai:aiConfigured(aiEnv),status:'ok',capabilities:['projects','uploads','inspect','extract'],reconstruction:'external-worker-required',camera:'local-agent-only'});
+   if(path==='/api/health'&&req.method==='GET')return json(res,200,{service:'kaitu',version:'0.4.0',ai:aiConfigured(aiEnv),status:'ok',capabilities:['projects','uploads','inspect','extract'],reconstruction:'external-worker-required',camera:'local-agent-only'});
    if(path.startsWith('/api/')){
     if(!auth(req,token))return json(res,401,{error:'请在工作台输入部署时配置的访问密钥'});
     if(req.headers.origin){let origin;try{origin=new URL(req.headers.origin);}catch{return json(res,403,{error:'无效来源'});}if(origin.host!==req.headers.host)return json(res,403,{error:'仅接受同源请求'});}
