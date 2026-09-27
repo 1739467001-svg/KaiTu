@@ -6,15 +6,17 @@ import {randomUUID,createHash,timingSafeEqual} from 'node:crypto';
 import {Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {pathToFileURL} from 'node:url';
+import {tourStore,validateTour} from './tours.mjs';
 import {openStore} from './store.mjs';
 import {recommendWithProvider,aiConfigured} from './assistant.mjs';
 const allowed=new Set(['.insv','.insp','.mp4','.jpg','.jpeg','.png','.webp','.ply','.spz','.splat','.json']);
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.json':'application/json','.pdf':'application/pdf','.md':'text/plain; charset=utf-8'};
+const types={'.mp4':'video/mp4','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.json':'application/json','.pdf':'application/pdf','.md':'text/plain; charset=utf-8'};
 const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
-const body=async(req)=>{let chunks=[],bytes=0;for await(const c of req){bytes+=c.length;if(bytes>16384)throw Object.assign(new Error('JSON 请求过大'),{status:413});chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}');}catch{throw Object.assign(new Error('JSON 格式无效'),{status:400});}};
+const body=async(req,limit=16384)=>{let chunks=[],bytes=0;for await(const c of req){bytes+=c.length;if(bytes>limit)throw Object.assign(new Error('JSON 请求过大'),{status:413});chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString()||'{}');}catch{throw Object.assign(new Error('JSON 格式无效'),{status:400});}};
 function auth(req,token){const provided=Buffer.from(req.headers.authorization?.replace(/^Bearer /,'')||''),expected=Buffer.from(token);return provided.length===expected.length&&timingSafeEqual(provided,expected);}
 export function createApp({directory=resolve(process.env.DATA_DIR||'data'),token=process.env.KAITU_API_TOKEN,dist=resolve('dist'),aiEnv=process.env,maxBytes=Number(process.env.MAX_UPLOAD_MB||512)*1024*1024,store=openStore(directory)}={}){
  if(!token||(token.length<32&&!(process.env.KAITU_ALLOW_SHORT_TOKEN==='true'&&token.length>=4)))throw new Error('KAITU_API_TOKEN 必须设置为至少 32 个字符的随机密钥');
+ const tours=tourStore(store.db);
  let uploading=0,aiRequests=0;
  const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
@@ -22,9 +24,26 @@ export function createApp({directory=resolve(process.env.DATA_DIR||'data'),token
   try{
    const url=new URL(req.url,'http://localhost');const path=url.pathname;
    if(path==='/api/health'&&req.method==='GET')return json(res,200,{service:'kaitu',version:'0.4.0',ai:aiConfigured(aiEnv),status:'ok',capabilities:['projects','uploads','inspect','extract'],reconstruction:'external-worker-required',camera:'local-agent-only'});
+   const publicTour=path.match(/^\/api\/public\/tours\/([\w-]+)(?:\/assets\/([\w-]+))?$/);
+   if(publicTour&&req.method==='GET'){
+    const t=tours.get(publicTour[1]);if(!t?.published)return json(res,404,{error:'导览不存在或已撤回'});
+    if(!publicTour[2])return json(res,200,{id:t.id,...t.document});
+    if(!t.document.nodes.some(n=>n.assetId===publicTour[2]))return json(res,404,{error:'未发布此素材'});
+    const a=store.asset(publicTour[2]);if(!a)return json(res,404,{error:'素材不存在'});
+    const file=join(directory,'assets',a.id+a.extension),headers={'Content-Type':types[a.extension],'Cache-Control':'no-store','Accept-Ranges':'bytes'};
+    if(req.headers.range){const m=req.headers.range.match(/^bytes=(\d+)-(\d*)$/);if(!m)return json(res,416,{error:'无效范围'});const start=Number(m[1]),end=m[2]?Math.min(Number(m[2]),a.bytes-1):a.bytes-1;if(start>end||start>=a.bytes){res.writeHead(416,{'Content-Range':`bytes */${a.bytes}`});res.end();return;}res.writeHead(206,{...headers,'Content-Length':end-start+1,'Content-Range':`bytes ${start}-${end}/${a.bytes}`});await pipeline(createReadStream(file,{start,end}),res);return;}
+    res.writeHead(200,{...headers,'Content-Length':a.bytes});await pipeline(createReadStream(file),res);return;
+   }
    if(path.startsWith('/api/')){
     if(!auth(req,token))return json(res,401,{error:'请在工作台输入部署时配置的访问密钥'});
     if(req.headers.origin){let origin;try{origin=new URL(req.headers.origin);}catch{return json(res,403,{error:'无效来源'});}if(origin.host!==req.headers.host)return json(res,403,{error:'仅接受同源请求'});}
+    if(path==='/api/tours'&&req.method==='POST'){
+     const input=await body(req,131072),{projectId,doc}=validateTour(input,store);
+     if(input.id){const existing=tours.get(input.id);if(!existing||existing.project_id!==projectId)return json(res,400,{error:'不能覆盖其他场地的导览'});}
+     const t=tours.save(projectId,doc,input.id);return json(res,201,{id:t.id});
+    }
+    const tourMatch=path.match(/^\/api\/tours\/([\w-]+)$/);
+    if(tourMatch&&req.method==='DELETE'){if(!tours.get(tourMatch[1]))return json(res,404,{error:'导览不存在'});tours.unpublish(tourMatch[1]);return json(res,200,{unpublished:true});}
     if(path.startsWith('/api/camera/'))return json(res,501,{error:'云服务器无法直连现场相机；请在现场电脑运行 npm run bridge 和 npm run dev'});
     if(path==='/api/assistant'&&req.method==='POST'){if(aiRequests>=2)return json(res,429,{error:'AI 正在处理其他请求，请稍后重试'});aiRequests++;try{return json(res,200,await recommendWithProvider(await body(req),aiEnv));}finally{aiRequests--;}}
     if(path==='/api/projects'&&req.method==='GET')return json(res,200,{projects:store.projects()});

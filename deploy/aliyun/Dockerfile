@@ -4,7 +4,7 @@ ENV NODE_ENV=production PORT=8080 DATA_DIR=/data
 RUN mkdir /data && chown node:node /data
 COPY dist ./dist
 COPY server ./server
-COPY src/venues.js ./src/venues.js
+COPY src/venues.js src/tour-model.js ./src/
 COPY package.json ./package.json
 USER node
 EXPOSE 8080

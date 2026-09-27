@@ -14,7 +14,7 @@ RUN mkdir /data && chown node:node /data
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY package.json ./package.json
-COPY src/venues.js ./src/venues.js
+COPY src/venues.js src/tour-model.js ./src/
 USER node
 EXPOSE 8080
 CMD ["node", "server/app.mjs"]

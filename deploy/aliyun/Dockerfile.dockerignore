@@ -9,3 +9,5 @@
 !deploy
 !deploy/aliyun
 !deploy/aliyun/Dockerfile
+
+!src/tour-model.js

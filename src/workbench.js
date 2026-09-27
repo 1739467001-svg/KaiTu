@@ -1,3 +1,4 @@
+import {createTourEditor} from './tour-editor.js';
 import {getVenue,x4Air} from './venues.js';
 import {instaSample} from './media.js';
 import {escapeHtml as esc,downloadJson,appUrl} from './utils.js';
@@ -10,7 +11,7 @@ const state={credit:null,step:0,checklist:saved.checklist||{},notes:saved.notes|
 const persist=()=>{try{localStorage.setItem(key,JSON.stringify({checklist:state.checklist,notes:state.notes,startedAt:state.startedAt}));}catch{/* Export still works without storage. */}};
 const size=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.ceil(n/1024)+' KB';
 const statusNames={queued:'排队中',running:'处理中',succeeded:'已完成',failed:'失败',blocked:'需外部处理'};
-export function createWorkbench({world,toast,onAsset,onReturn}){
+function createLegacyWorkbench({world,toast,onAsset,onReturn}){
  let panel=null;
  const $=s=>panel?.querySelector(s);
  const active=()=>panel?.isConnected&&!!$('#workbench');
@@ -73,3 +74,5 @@ export function createWorkbench({world,toast,onAsset,onReturn}){
  async function openRealSample(){await run(async()=>{if(!world)throw new Error('当前设备三维渲染不可用');toast('正在载入 6.9 MB 影石实拍全景…');const response=await fetch(instaSample.src,{signal:AbortSignal.timeout(45000)});if(!response.ok)throw new Error('实拍样例加载失败，请稍后重试');const file=new File([await response.blob()],instaSample.fileName,{type:'image/jpeg'});await world.importAsset(file,{credit:instaSample});state.assetName=instaSample.title;state.credit=instaSample;onAsset(instaSample.title,false,instaSample);toast('已载入 Insta360 ONE RS 实拍。拖动浏览 360°，可导出横版 / 竖版取景。');});}
  return{render,openRealSample,assistant(venue,query){if(!state.cloud)throw new Error('请先在影像工作台连接已部署的服务；内置示例现在即可演示。');return cloud('/assistant',{method:'POST',body:JSON.stringify({venue,query})});},get assetName(){return state.assetName;}};
 }
+
+export function createWorkbench(options){const legacy=createLegacyWorkbench(options);const editor=createTourEditor({...options,legacy});return {...legacy,render:editor.render,assistant:editor.assistant};}
